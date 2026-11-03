@@ -6,6 +6,7 @@ import {
   exportFilename,
   parseExportColumns,
   parseExportScope,
+  scopedFilterParams,
   toCsv,
 } from "./csv"
 
@@ -33,7 +34,42 @@ describe("toCsv", () => {
   it("writes a header row followed by one row per payment", () => {
     const lines = toCsv([payment]).split("\n")
     expect(lines).toHaveLength(2)
-    expect(lines[0]).toBe(EXPORT_COLUMNS.join(","))
+    expect(lines[0]).toBe(DEFAULT_EXPORT_COLUMNS.join(","))
+  })
+
+  it("leaves card last four out when no columns are given, so no caller leaks it by accident", () => {
+    const [header, row] = toCsv([payment]).split("\n")
+    expect(header.split(",")).not.toContain("last4")
+    expect(row).not.toContain("4242")
+  })
+
+  it("still writes every column, last four included, when asked for all of them", () => {
+    expect(toCsv([payment], EXPORT_COLUMNS).split("\n")[0]).toBe(
+      EXPORT_COLUMNS.join(","),
+    )
+  })
+
+  it.each(["=1+1", "+1+1", "-1+1", "@SUM(A1)", "\t=1+1", "\r=1+1"])(
+    "neutralises a description that a spreadsheet would run as a formula: %j",
+    (description) => {
+      const cell = toCsv([{ ...payment, description }], ["description"]).split(
+        "\n",
+      )[1]
+      // A leading apostrophe makes Excel and Sheets treat the cell as text.
+      expect(cell.replace(/^"/, "").startsWith("'")).toBe(true)
+    },
+  )
+
+  it("does not touch a negative amount, which is data rather than a formula", () => {
+    expect(toCsv([{ ...payment, amount: -500 }], ["amount"])).toBe(
+      ["amount", "-$5.00"].join("\n"),
+    )
+  })
+
+  it("quotes a cell containing a carriage return, so the row does not split", () => {
+    expect(
+      toCsv([{ ...payment, description: "Order\r1180" }], ["description"]),
+    ).toBe(["description", '"Order\r1180"'].join("\n"))
   })
 
   it("writes only the requested columns, in the order given", () => {
@@ -149,9 +185,37 @@ describe("parseExportColumns", () => {
 })
 
 describe("parseExportScope", () => {
-  it("defaults to the current filter and accepts only known scopes", () => {
-    expect(parseExportScope(null)).toBe("filtered")
-    expect(parseExportScope("all")).toBe("all")
-    expect(parseExportScope("everything")).toBe("filtered")
+  it("defaults to the current filter and accepts the known scopes", () => {
+    expect(parseExportScope(null)).toEqual({ ok: true, scope: "filtered" })
+    expect(parseExportScope("filtered")).toEqual({ ok: true, scope: "filtered" })
+    expect(parseExportScope("all")).toEqual({ ok: true, scope: "all" })
+  })
+
+  it("rejects an unknown scope rather than quietly exporting the filtered set", () => {
+    expect(parseExportScope("everything")).toEqual({
+      ok: false,
+      error: "Unknown export scope: everything",
+    })
+    expect(parseExportScope("All")).toMatchObject({ ok: false })
+  })
+})
+
+describe("scopedFilterParams", () => {
+  const params = new URLSearchParams(
+    "status=disputed&merchantId=mch_01&search=order&from=2026-03-01&to=2026-03-31&sort=amount&direction=asc&page=3",
+  )
+
+  it("passes the current filter through unchanged", () => {
+    expect(scopedFilterParams("filtered", params).toString()).toBe(
+      params.toString(),
+    )
+  })
+
+  it("clears every filter for all payments but keeps the sort order", () => {
+    const all = scopedFilterParams("all", params)
+    expect(Object.fromEntries(all)).toEqual({
+      sort: "amount",
+      direction: "asc",
+    })
   })
 })

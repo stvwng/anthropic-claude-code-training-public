@@ -4,6 +4,7 @@ import {
   ExportScope,
   parseExportColumns,
   parseExportScope,
+  scopedFilterParams,
   toCsv,
 } from "@/lib/csv"
 import { PaymentFilters } from "@/data/types"
@@ -14,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server"
  *
  * Query params: the usual payment filters, plus
  *   columns  comma-separated, validated against EXPORT_COLUMNS (absent = defaults, no last4)
- *   scope    "filtered" (default) or "all"
+ *   scope    "filtered" (default) or "all"; anything else is a 400
  *
  * Every row comes from the one query builder; no pagination, so the file
  * holds every matching row rather than the page on screen.
@@ -23,18 +24,13 @@ export function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
 
   const parsedColumns = parseExportColumns(params.get("columns"))
-  if (!parsedColumns.ok) {
-    console.warn(
-      `[export] ${new Date().toISOString()} rejected columns=${JSON.stringify(params.get("columns"))}: ${parsedColumns.error}`,
-    )
-    return NextResponse.json({ error: parsedColumns.error }, { status: 400 })
-  }
+  if (!parsedColumns.ok) return reject("columns", params, parsedColumns.error)
 
-  const scope = parseExportScope(params.get("scope"))
-  // "all" still goes through parseFilters, just with nothing to filter on.
-  const filters =
-    scope === "all" ? parseFilters(new URLSearchParams()) : parseFilters(params)
+  const parsedScope = parseExportScope(params.get("scope"))
+  if (!parsedScope.ok) return reject("scope", params, parsedScope.error)
+  const { scope } = parsedScope
 
+  const filters = parseFilters(scopedFilterParams(scope, params))
   const rows = sortPayments(
     filterPayments(filters),
     filters.sort,
@@ -47,6 +43,13 @@ export function GET(request: NextRequest) {
       "content-disposition": `attachment; filename="${exportFilename(new Date(), filenameLabel(scope, filters))}"`,
     },
   })
+}
+
+function reject(param: "columns" | "scope", params: URLSearchParams, error: string) {
+  console.warn(
+    `[DEBUG] ${new Date().toISOString()} GET /api/payments/export rejected ${param}=${JSON.stringify(params.get(param))}: ${error}`,
+  )
+  return NextResponse.json({ error }, { status: 400 })
 }
 
 /**

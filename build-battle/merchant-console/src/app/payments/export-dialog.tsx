@@ -17,6 +17,7 @@ import {
   EXPORT_COLUMNS,
   ExportColumn,
   ExportScope,
+  scopedFilterParams,
 } from "@/lib/csv"
 import { Download } from "lucide-react"
 import { useState } from "react"
@@ -78,7 +79,7 @@ export function ExportDialog({ query }: { query: string }) {
       setCounts({ state: "ready", filtered, all })
     } catch (error) {
       console.error(
-        `[ExportDialog] ${new Date().toISOString()} loadCounts failed`,
+        `[DEBUG] ${new Date().toISOString()} ExportDialog.loadCounts failed (filterQuery=${JSON.stringify(filterQuery)})`,
         error,
       )
       setCounts({ state: "error", message: "Couldn't load row counts." })
@@ -96,7 +97,8 @@ export function ExportDialog({ query }: { query: string }) {
   }
 
   const downloadHref = (() => {
-    const params = new URLSearchParams(scope === "all" ? "" : filterQuery)
+    // Same helper as the route, so "all payments" keeps the sort on both sides.
+    const params = scopedFilterParams(scope, new URLSearchParams(filterQuery))
     params.set("scope", scope)
     params.set("columns", columns.join(","))
     return `/api/payments/export?${params.toString()}`
