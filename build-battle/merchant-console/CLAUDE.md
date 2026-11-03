@@ -65,3 +65,5 @@ These four explain most of the code, and breaking them is how bugs get in here.
 ## Before you push
 
 Run `npm test`, then `/ship-ready`. The skill checks the rules above, not just formatting.
+
+When Claude pushes, a hook runs `npm test` and `npm run build` first and blocks the push if either fails. A blocked push says which one failed and where its log is; fix the cause rather than working around the hook.

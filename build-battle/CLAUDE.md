@@ -21,9 +21,9 @@ Taking ticket NWP-201 end to end in a codebase you did not write, in 40 minutes,
 
 ## What is preloaded
 
-- Skills: `/spec`, `/pr`, `/ship-ready`, `/submit`
-- Subagent: `bug-investigator`, read-only, for diagnosing a report before anyone edits code
-- No hooks. Add your own if you want one.
+- Skills: `/spec`, `/pr`, `/ship-ready`, `/submit`, and `/northwind-pr`, which writes the PR description in the team format (`/submit` uses it when it is present)
+- Subagents: `bug-investigator`, read-only, for diagnosing a report before anyone edits code; `org-standards`, read-only, for auditing code against every numbered item in `docs/ORG-STANDARDS.md`
+- Hook: before Claude runs `git push`, `.claude/hooks/pre-push-check.sh` runs `npm test` and `npm run build` in `merchant-console/` and blocks the push if either fails. It does not cover pushes you type in your own terminal.
 
 ## Workflow rules
 
