@@ -45,13 +45,16 @@ if ! (cd "$app_dir" && npm test) >"$test_log" 2>&1; then
   exit 2
 fi
 
-if ! (cd "$app_dir" && npm run build) >"$build_log" 2>&1; then
+# Build into its own folder: `next build` into .next replaces files a running
+# `npm run dev` serves from, and the dev server starts returning 500s.
+build_dir=".next-prepush"
+if ! (cd "$app_dir" && NEXT_DIST_DIR="$build_dir" npm run build) >"$build_log" 2>&1; then
   {
     echo "[pre-push-check] $(timestamp) push blocked: BUILD FAILED (tests passed)."
     echo "Last lines:"
     tail -15 "$build_log"
     echo "Full output: $build_log"
-    echo "Re-run: cd $app_dir && npm run build"
+    echo "Re-run: cd $app_dir && NEXT_DIST_DIR=$build_dir npm run build"
   } >&2
   exit 2
 fi
