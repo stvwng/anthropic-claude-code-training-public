@@ -47,12 +47,11 @@ export function dailyVolume(days = 30): DailyVolume[] {
 
 export function headlineMetrics() {
   const captured = store.payments.filter((p) => p.status === "captured")
-  const refunded = store.payments.filter((p) => p.status === "refunded")
 
-  // Gross volume is everything that moved through the platform.
-  const grossVolume =
-    captured.reduce((sum, p) => sum + p.amount, 0) +
-    refunded.reduce((sum, p) => sum + p.amount, 0)
+  // Gross volume is what settles: captured payments only, the same basis
+  // payouts use. Adding refunded payments back in made refund-heavy merchants'
+  // totals read too high (NWP-102). Still mixes currencies; see NWP-102 notes.
+  const grossVolume = captured.reduce((sum, p) => sum + p.amount, 0)
 
   const authorized = store.payments.filter(
     (p) => p.status !== "failed",
