@@ -47,7 +47,7 @@ export function GET(request: NextRequest) {
 
 function reject(param: "columns" | "scope", params: URLSearchParams, error: string) {
   console.warn(
-    `[DEBUG] ${new Date().toISOString()} GET /api/payments/export rejected ${param}=${JSON.stringify(params.get(param))}: ${error}`,
+    `[export] ${new Date().toISOString()} GET /api/payments/export rejected ${param}=${JSON.stringify(params.get(param))}: ${error}`,
   )
   return NextResponse.json({ error }, { status: 400 })
 }

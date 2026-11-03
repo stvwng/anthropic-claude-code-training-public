@@ -79,7 +79,7 @@ export function ExportDialog({ query }: { query: string }) {
       setCounts({ state: "ready", filtered, all })
     } catch (error) {
       console.error(
-        `[DEBUG] ${new Date().toISOString()} ExportDialog.loadCounts failed (filterQuery=${JSON.stringify(filterQuery)})`,
+        `[export] ${new Date().toISOString()} ExportDialog.loadCounts failed (filterQuery=${JSON.stringify(filterQuery)})`,
         error,
       )
       setCounts({ state: "error", message: "Couldn't load row counts." })
