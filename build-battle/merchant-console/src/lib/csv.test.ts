@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { Payment } from "@/data/types"
-import { EXPORT_COLUMNS, exportFilename, toCsv } from "./csv"
+import {
+  DEFAULT_EXPORT_COLUMNS,
+  EXPORT_COLUMNS,
+  exportFilename,
+  parseExportColumns,
+  parseExportScope,
+  toCsv,
+} from "./csv"
 
 /**
  * The export is the file ops hands to a merchant, so a broken cell is a
@@ -81,5 +88,70 @@ describe("exportFilename", () => {
     expect(exportFilename(new Date("2026-03-14T23:00:00.000Z"))).toBe(
       "payments-2026-03-14.csv",
     )
+  })
+
+  it("puts the scope or status label before the date", () => {
+    expect(
+      exportFilename(new Date("2026-03-14T10:00:00.000Z"), "disputed"),
+    ).toBe("payments-disputed-2026-03-14.csv")
+  })
+})
+
+describe("parseExportColumns", () => {
+  it("keeps a subset of columns in the order requested, not the canonical order", () => {
+    const parsed = parseExportColumns("amount,currency,id")
+    expect(parsed).toEqual({ ok: true, columns: ["amount", "currency", "id"] })
+    if (!parsed.ok) throw new Error(parsed.error)
+    expect(toCsv([payment], parsed.columns)).toBe(
+      ["amount,currency,id", "$250.00,USD,pay_0001"].join("\n"),
+    )
+  })
+
+  it("drops duplicates and stray whitespace without reordering", () => {
+    expect(parseExportColumns(" status , id,status ")).toEqual({
+      ok: true,
+      columns: ["status", "id"],
+    })
+  })
+
+  it("excludes card last four by default, so the file is safe to send to a merchant", () => {
+    const parsed = parseExportColumns(null)
+    expect(parsed).toEqual({ ok: true, columns: [...DEFAULT_EXPORT_COLUMNS] })
+    if (!parsed.ok) throw new Error(parsed.error)
+    expect(parsed.columns).not.toContain("last4")
+
+    const [header, row] = toCsv([payment], parsed.columns).split("\n")
+    expect(header.split(",")).not.toContain("last4")
+    expect(row).not.toContain("4242")
+  })
+
+  it("still includes last four when it is asked for explicitly", () => {
+    expect(parseExportColumns("id,last4")).toEqual({
+      ok: true,
+      columns: ["id", "last4"],
+    })
+  })
+
+  it("rejects an empty selection rather than producing an empty file", () => {
+    expect(parseExportColumns("")).toEqual({
+      ok: false,
+      error: "Select at least one column to export.",
+    })
+    expect(parseExportColumns(" , ,")).toMatchObject({ ok: false })
+  })
+
+  it("rejects a column that is not on the allowlist, naming it", () => {
+    expect(parseExportColumns("id,pan")).toEqual({
+      ok: false,
+      error: "Unknown export column: pan",
+    })
+  })
+})
+
+describe("parseExportScope", () => {
+  it("defaults to the current filter and accepts only known scopes", () => {
+    expect(parseExportScope(null)).toBe("filtered")
+    expect(parseExportScope("all")).toBe("all")
+    expect(parseExportScope("everything")).toBe("filtered")
   })
 })

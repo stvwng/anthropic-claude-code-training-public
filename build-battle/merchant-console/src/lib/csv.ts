@@ -5,9 +5,9 @@ import { formatMoney } from "./money"
 /**
  * CSV export for the payments table.
  *
- * The column set is fixed. Ops has asked for control over it — that is
- * NWP-101 — but today everyone gets every column, including the card
- * last four, whether or not the file is going to a merchant.
+ * Ops chooses the columns and the scope (NWP-101). Column names arrive from
+ * the client, so they are parsed here against EXPORT_COLUMNS before anything
+ * is written; the route never trusts the raw query string.
  */
 
 export const EXPORT_COLUMNS = [
@@ -24,6 +24,52 @@ export const EXPORT_COLUMNS = [
 ] as const
 
 export type ExportColumn = (typeof EXPORT_COLUMNS)[number]
+
+// Last four is off by default: most exports go to merchants, and a file that
+// leaks card digits to the wrong merchant is the near-miss NWP-101 exists for.
+export const DEFAULT_EXPORT_COLUMNS: readonly ExportColumn[] =
+  EXPORT_COLUMNS.filter((column) => column !== "last4")
+
+export type ParsedExportColumns =
+  | { ok: true; columns: ExportColumn[] }
+  | { ok: false; error: string }
+
+function isExportColumn(value: string): value is ExportColumn {
+  return (EXPORT_COLUMNS as readonly string[]).includes(value)
+}
+
+/**
+ * Parses the `columns` query param: comma-separated, order preserved,
+ * duplicates dropped. Absent means the defaults; present but empty is an
+ * error, because an export with no columns is never what anyone meant.
+ */
+export function parseExportColumns(raw: string | null): ParsedExportColumns {
+  if (raw === null) return { ok: true, columns: [...DEFAULT_EXPORT_COLUMNS] }
+
+  const requested = raw
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+
+  if (requested.length === 0) {
+    return { ok: false, error: "Select at least one column to export." }
+  }
+
+  const unknown = requested.find((name) => !isExportColumn(name))
+  if (unknown !== undefined) {
+    // Rejecting rather than dropping: a silently missing column is worse than an error.
+    return { ok: false, error: `Unknown export column: ${unknown}` }
+  }
+
+  return { ok: true, columns: [...new Set(requested as ExportColumn[])] }
+}
+
+export const EXPORT_SCOPES = ["filtered", "all"] as const
+export type ExportScope = (typeof EXPORT_SCOPES)[number]
+
+export function parseExportScope(raw: string | null): ExportScope {
+  return raw === "all" ? "all" : "filtered"
+}
 
 function escapeCell(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
@@ -66,6 +112,11 @@ export function toCsv(
   return [header, ...rows].join("\n")
 }
 
-export function exportFilename(date = new Date()): string {
-  return `payments-${date.toISOString().slice(0, 10)}.csv`
+/**
+ * `label` must already be allowlisted by the caller (a scope or a status);
+ * it goes into a Content-Disposition header.
+ */
+export function exportFilename(date = new Date(), label?: string): string {
+  const day = date.toISOString().slice(0, 10)
+  return label ? `payments-${label}-${day}.csv` : `payments-${day}.csv`
 }
