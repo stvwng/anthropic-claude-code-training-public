@@ -17,11 +17,11 @@ Taking ticket NWP-201 end to end in a codebase you did not write, in 40 minutes,
 3. `@docs/specs/NWP-201-issue-cards.md` — load the plan, then plan mode, then build
 4. `/ship-ready` — check yourself
 5. `/pr` — write the description
-6. Commit, push, open the pull request
+6. Commit, then `/submit` — pushes the branch and opens the pull request
 
 ## What is preloaded
 
-- Skills: `/spec`, `/pr`, `/ship-ready`
+- Skills: `/spec`, `/pr`, `/ship-ready`, `/submit`
 - Subagent: `bug-investigator`, read-only, for diagnosing a report before anyone edits code
 - No hooks. Add your own if you want one.
 
